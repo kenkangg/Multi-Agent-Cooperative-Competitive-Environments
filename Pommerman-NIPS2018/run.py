@@ -58,14 +58,17 @@ def main():
         agents.SimpleAgent(),
         agents.SimpleAgent(),
         agents.SimpleAgent(),
+        NothingAgent()
         # agents.DockerAgent("pommerman/simple-agent", port=5000),
     ]
     # Make the "Free-For-All" environment using the agent list
     env = pommerman.make('PommeFFAFast-v0', agent_list)
 
-    agent = NothingAgent(env)
-    agent_list.append(agent)
-    env.set_agents(agent_list)
+    agent_list[-1].initialize_agent(env)
+    # #
+    # agent_list.append(agent)
+    # #
+    # env.set_agents(agent_list)
 
 
     env.seed(0)
@@ -75,9 +78,12 @@ def main():
         state = env.reset()
         done = False
         while not done:
-            env.render()
+            # env.render()
             actions = env.act(state)
             state, reward, done, info = env.step(actions)
+
+        i_episode % 5 == 0:
+        
         print('Episode {} finished'.format(i_episode))
     env.close()
 

@@ -1,56 +1,42 @@
 
 from pommerman import agents
+from pommerman import characters
 
 from keras.models import Sequential, Model
 from keras.layers import Dense, Activation, Flatten, Input, Concatenate
 from keras.optimizers import Adam
 
-from rl.agents import DDPGAgent
+from rl.agents.dqn import DQNAgent
+from rl.policy import BoltzmannQPolicy
 from rl.memory import SequentialMemory
-from rl.random import OrnsteinUhlenbeckProcess
 
 import numpy as np
 
 class NothingAgent(agents.BaseAgent):
-    def __init__(self, env):
+    def initialize_agent(self, env):
         np.random.seed(123)
         env.seed(123)
         nb_actions = 6
 
-        # Next, we build a very simple model.
-        actor = Sequential()
-        actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
-        actor.add(Dense(64))
-        actor.add(Activation('relu'))
-        actor.add(Dense(64))
-        actor.add(Activation('relu'))
-        actor.add(Dense(64))
-        actor.add(Activation('relu'))
-        actor.add(Dense(nb_actions))
-        actor.add(Activation('linear'))
-
-        action_input = Input(shape=(nb_actions,), name='action_input')
-        observation_input = Input(shape=(1,) + env.observation_space.shape, name='observation_input')
-        flattened_observation = Flatten()(observation_input)
-        x = Concatenate()([action_input, flattened_observation])
-        x = Dense(64)(x)
-        x = Activation('relu')(x)
-        x = Dense(64)(x)
-        x = Activation('relu')(x)
-        x = Dense(64)(x)
-        x = Activation('relu')(x)
-        x = Dense(1)(x)
-        x = Activation('linear')(x)
-        critic = Model(inputs=[action_input, observation_input], outputs=x)
+        model = Sequential()
+        model.add(Flatten(input_shape=(1,) + env.observation_space.shape))
+        model.add(Dense(16))
+        model.add(Activation('relu'))
+        model.add(Dense(16))
+        model.add(Activation('relu'))
+        model.add(Dense(16))
+        model.add(Activation('relu'))
+        model.add(Dense(nb_actions))
+        model.add(Activation('linear'))
+        print(model.summary())
 
         # Finally, we configure and compile our agent. You can use every built-in Keras optimizer and
         # even the metrics!
-        memory = SequentialMemory(limit=10000, window_length=1)
-        random_process = OrnsteinUhlenbeckProcess(size=nb_actions, theta=.15, mu=0., sigma=.3)
-
-        agent = DDPGAgent(nb_actions=nb_actions, actor=actor, critic=critic, critic_action_input=action_input,
-                          memory=memory, nb_steps_warmup_critic=1000, nb_steps_warmup_actor=1000,
-                          random_process=random_process, gamma=.99, target_model_update=1e-3)
+        memory = SequentialMemory(limit=50000, window_length=1)
+        policy = BoltzmannQPolicy()
+        agent = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=10,
+                       target_model_update=1e-2, policy=policy)
+        agent.compile(Adam(lr=1e-3), metrics=['mae'])
 
         self.agent = agent
 
@@ -65,8 +51,9 @@ class NothingAgent(agents.BaseAgent):
         4: Up?
         5: Place Bomb
         """
-        
-        return self.agent.forward(featurize(obs))
+        policy = self.agent.forward(featurize(obs))
+        # print(policy)
+        return policy
 
 
 
