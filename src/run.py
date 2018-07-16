@@ -1,6 +1,19 @@
 import pommerman
-from pommerman import agents
-from agent import NothingAgent
+import gym
+
+import os
+import sys
+import numpy as np
+
+from pommerman.agents import SimpleAgent, RandomAgent, PlayerAgent, BaseAgent
+from pommerman.configs import ffa_v1_env
+from pommerman.envs.v0 import Pomme
+from pommerman.characters import Bomber
+from pommerman import utility
+
+from tensorforce.agents import PPOAgent
+from tensorforce.execution import Runner
+from tensorforce.contrib.openai_gym import OpenAIGym
 
 import numpy as np
 
@@ -49,45 +62,83 @@ def featurize(obs):
 
     return np.concatenate((board, bomb_blast_strength, bomb_life, position, ammo, blast_strength, can_kick, teammate, enemies))
 
+class TensorforceAgent(BaseAgent):
+    def act(self, obs, action_space):
+        pass
+
+class WrappedEnv(OpenAIGym):
+    def __init__(self, gym, visualize=False):
+        self.gym = gym
+        self.visualize = visualize
+
+    def execute(self, actions):
+        if self.visualize:
+            self.gym.render()
+
+        obs = self.gym.get_observations()
+        all_actions = self.gym.act(obs)
+        all_actions.insert(self.gym.training_agent, actions)
+        state, reward, terminal, _ = self.gym.step(all_actions)
+        agent_state = featurize(state[self.gym.training_agent])
+        agent_reward = reward[self.gym.training_agent]
+        return agent_state, terminal, agent_reward
+
+    def reset(self):
+        obs = self.gym.reset()
+        agent_obs = featurize(obs[3])
+        return agent_obs
+
 def main():
     # Print all possible environments in the Pommerman registry
-    print(pommerman.registry)
-
-    # Create a set of agents (exactly four)
-    agent_list = [
-        agents.SimpleAgent(),
-        agents.SimpleAgent(),
-        agents.SimpleAgent(),
-        agents.SimpleAgent()
-        # NothingAgent()
-        # agents.DockerAgent("pommerman/simple-agent", port=5000),
-    ]
-    # Make the "Free-For-All" environment using the agent list
-    env = pommerman.make('PommeFFAFast-v0', agent_list)
-
-    # agent_list[-1].initialize_agent(env)
-    # #
-    # agent_list.append(agent)
-    # #
-    # env.set_agents(agent_list)
-
-
+    # Instantiate the environment
+    config = ffa_v1_env()
+    env = Pomme(**config["env_kwargs"])
     env.seed(0)
-#
-    # Run the episodes just like OpenAI Gym
-    for i_episode in range(10):
-        state = env.reset()
-        done = False
-        while not done:
-            # env.render()
-            actions = env.act(state)
-            state, reward, done, info = env.step(actions)
-            print()
-            print(state[0])
 
-        print('Episode {} finished'.format(i_episode))
-    env.close()
+    # Create a Proximal Policy Optimization agent
+    agent = PPOAgent(
+        states=dict(type='float', shape=env.observation_space.shape),
+        actions=dict(type='int', num_actions=env.action_space.n),
+        network=[
+            dict(type='dense', size=64),
+            dict(type='dense', size=128),
+            dict(type='dense', size=64)
+        ],
+        batching_capacity=1000,
+        step_optimizer=dict(
+            type='adam',
+            learning_rate=1e-4
+        )
+    )
 
+    # Add 3 random agents
+    agents = []
+    for agent_id in range(3):
+        agents.append(SimpleAgent(config["agent"](agent_id, config["game_type"])))
+
+    # Add TensorforceAgent
+    agent_id += 1
+    agents.append(TensorforceAgent(config["agent"](agent_id, config["game_type"])))
+    env.set_agents(agents)
+    env.set_training_agent(agents[-1].agent_id)
+    env.set_init_game_state(None)
+
+    # Instantiate and run the environment for 5 episodes.
+    wrapped_env = WrappedEnv(env)
+    runner = Runner(agent=agent, environment=wrapped_env)
+
+    def episode_finished(r):
+        print("Finished episode {ep} after {ts} timesteps (reward: {reward})".format(ep=r.episode, ts=r.episode_timestep,
+                                                                                     reward=r.episode_rewards[-1]))
+        return True
+
+    runner.run(episodes=300, max_episode_timesteps=2000, episode_finished=episode_finished)
+    print("Stats: ", runner.episode_rewards, runner.episode_timesteps, runner.episode_times)
+
+    try:
+        runner.close()
+    except AttributeError as e:
+        pass
 
 if __name__ == '__main__':
     main()
