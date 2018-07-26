@@ -40,7 +40,7 @@ print(args.test)
 EXPERIMENT_NAME = args.exp
 BATCH_SIZE = 32
 VISUALIZE = False
-EPISODES = 100000
+EPISODES = 50000
 # EXPERIMENT_NAME = 'model_timestep_reward'
 
 config = tf.ConfigProto()
@@ -108,7 +108,7 @@ class WrappedEnv(OpenAIGym):
             agent_reward *= 5
         elif alive_before != alive_after and self.gym._agents[self.gym.training_agent].is_alive and alive_after != 1:
             print(alive_before, alive_after)
-            # agent_reward += 0.25 * (alive_before - alive_after)
+            #agent_reward += 0.25 * (alive_before - alive_after)
             if bomb_before < bomb_after:
                 print(bomb_before, bomb_after)
                 agent_reward += 1  * (alive_before - alive_after)
