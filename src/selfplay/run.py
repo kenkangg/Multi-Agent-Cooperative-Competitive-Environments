@@ -49,6 +49,7 @@ sess = tf.Session(config=config)
 # TODO: ^^^Asyncronous
 
 
+
 def main():
     # Print all possible environments in the Pommerman registry
     # Instantiate the environment
@@ -70,23 +71,13 @@ def main():
     with open('mlp2_lstm_network.json', 'r') as fp:
             network = json.load(fp=fp)
 
-    agent = Agent.from_spec(
-        spec=agent,
-        kwargs=dict(
-            states=dict(type='float', shape=env.observation_space.shape),
-            actions=dict(type='int', num_actions=env.action_space.n),
-            network=network
-        )
-    )
-
     # Add 3 random agents
     agents = []
     for agent_id in range(3):
-        agents.append(TensorforceAgent(config["agent"](agent_id, config["game_type"])))
-
+        agents.append(SimpleAgent(config["agent"](agent_id, config["game_type"])))
     # Add TensorforceAgent
     agent_id += 1
-    agents.append(TensorforceAgent(config["agent"](agent_id, config["game_type"])))
+    agents.append(SimpleAgent(config["agent"](agent_id, config["game_type"])))
     env.set_agents(agents)
     env.set_training_agent(agents[-1].agent_id)
     env.set_init_game_state(None)
@@ -97,7 +88,7 @@ def main():
     else:
         wrapped_env = UpdatedEnv(env)
 
-    runner = Runner(agent=agent, environment=wrapped_env)
+    # runner = Runner(agent=agent, environment=wrapped_env)
 
     rewards = []
     episodes = []

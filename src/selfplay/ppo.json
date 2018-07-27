@@ -6,6 +6,7 @@
         "batch_size": 500,
         "frequency": 500
     },
+    "batching_capacity": 4000,
 
     "step_optimizer": {
         "type": "adam",
