@@ -13,15 +13,15 @@ from pommerman.characters import Bomber
 from pommerman import utility
 
 
-from utils import *
+from utils import featurize3d, TrainingAgent
 import argparse
 import tensorflow as tf
 import numpy as np
 import json
 from gym import spaces
 
-from PPO import CnnPolicy
-from PPO import Model
+
+from PPO import *
 
 
 parser = argparse.ArgumentParser()
@@ -38,7 +38,32 @@ EPISODES = 50000
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth=True
-sess = tf.Session(config=config)
+sess = tf.InteractiveSession(config=config)
+
+
+class Wrapped_Env(Pomme):
+
+    def __init__(self, **kwargs):
+        super(Wrapped_Env, self).__init__(**kwargs)
+
+    def step(self, actions):
+        all_actions = self.act(self.curr_obs)
+        all_actions.insert(self.training_agent, actions[0])
+
+        obs, reward, done, info = super(Wrapped_Env, self).step(all_actions)
+
+        agent_state = featurize3d(obs[self.training_agent], self._step_count, self._max_steps)
+        agent_reward = reward[self.training_agent]
+
+        return agent_state, agent_reward, done, info
+
+
+    def reset(self):
+        self.curr_obs = super(Wrapped_Env,self).reset()
+        agent_obs = featurize3d(self.curr_obs[self.training_agent], self._step_count, self._max_steps)
+        # agent_obs = featurize3d(obs[self.gym.training_agent], self.gym._step_count, self.gym._max_steps)
+        # print(agent_obs.shape)
+        return agent_obs
 
 
 def main():
@@ -52,33 +77,48 @@ def main():
         VISUALIZE = True
 
     config = ffa_competition_env()
-    env = Pomme(**config["env_kwargs"])
+    env = Wrapped_Env(**config["env_kwargs"])
     env.seed(0)
     env.observation_space = spaces.Box(0,20,shape=(11,11,18))
+    env.num_envs = 1
 
 
+    # Add 3 random agents
     agents = []
     for agent_id in range(3):
         agents.append(SimpleAgent(config["agent"](agent_id, config["game_type"])))
 
+    agent_id += 1
+
     # Add TensorforceAgent
-    # agent_id += 1
     agents.append(TrainingAgent(config["agent"](agent_id, config["game_type"])))
     env.set_agents(agents)
     env.set_training_agent(agents[-1].agent_id)
     env.set_init_game_state(None)
 
+    # print(env.reset())
+
     policy = CnnPolicy
 
-    Model(policy=policy,
-               ob_space=env.observation_space,
-               ac_space=env.action_space,
-               nbatch_act=1000,
-               nbatch_train=100,
-               nsteps=1000,
-               ent_coef=0.01,
-               vf_coef=0.5,
-               max_grad_norm=0.5)
+    # Model(policy=policy,
+    #            ob_space=env.observation_space,
+    #            ac_space=env.action_space,
+    #            nbatch_act=1,
+    #            nbatch_train=100,
+    #            nsteps=1000,
+    #            ent_coef=0.01,
+    #            vf_coef=0.5,
+    #            max_grad_norm=0.5)
+    num_timesteps=10000
+
+    learn(policy=policy, env=env, nsteps=128, nminibatches=4,
+        lam=0.95, gamma=0.99, noptepochs=4, log_interval=1,
+        ent_coef=.01,
+        lr=lambda f : f * 2.5e-4,
+        cliprange=lambda f : f * 0.1,
+        total_timesteps=int(num_timesteps * 1.1))
+
+
 
 
 
