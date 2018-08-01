@@ -1,0 +1,39 @@
+[
+    {
+        "type": "dense",
+        "size": 128
+    },
+    {
+        "type": "dense",
+        "size": 128
+    },
+    {
+        "type": "internal_lstm",
+        "size": 128
+    }
+]
+
+[
+    {
+        "type": "conv2d",
+        "size": 64,
+        "window": 2,
+        "stride": 1,
+        "padding": "VALID"
+    },
+    {
+        "type": "conv2d",
+        "size": 64,
+        "window": 2,
+        "stride": 1,
+        "padding": "VALID"
+    },
+    {
+        "type": "flatten"
+    },
+    {
+        "type": "dense",
+        "size": 256,
+        "activation": "relu"
+    }
+]
