@@ -46,7 +46,6 @@ class Runner(BaseRunner):
             timesteps (int): Deprecated; see num_timesteps.
             episodes (int): Deprecated; see num_episodes.
         """
-
         # deprecation warnings
         if timesteps is not None:
             num_timesteps = timesteps
@@ -56,7 +55,6 @@ class Runner(BaseRunner):
             num_episodes = episodes
             warnings.warn("WARNING: `episodes` parameter is deprecated, use `num_episodes` instead.",
                           category=DeprecationWarning)
-
         # figure out whether we are using the deprecated way of "episode_finished" reporting
         old_episode_finished = False
         if episode_finished is not None and len(getargspec(episode_finished).args) == 1:
@@ -78,6 +76,8 @@ class Runner(BaseRunner):
             episode_start_time = time.time()
             state = self.environment.reset()
             self.agent.reset()
+            print(state)
+            print(state.shape)
 
             # Update global counters.
             self.global_episode = self.agent.episode  # global value (across all agents)

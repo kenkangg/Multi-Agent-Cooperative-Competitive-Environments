@@ -14,7 +14,7 @@ from pommerman import utility
 
 from tensorforce.agents import PPOAgent
 from tensorforce.agents import DQNAgent
-import Runner
+from Runner import Runner
 from tensorforce.contrib.openai_gym import OpenAIGym
 from tensorforce.agents import Agent
 
@@ -64,15 +64,19 @@ def main():
     with open('mlp2_lstm_network.json', 'r') as fp:
             network = json.load(fp=fp)
 
+    env.observation_space = spaces.Box(0,10,shape=(18,11,11))
+
     agent = Agent.from_spec(
         spec=agent,
         kwargs=dict(
-            states=dict(type='float', shape=env.observation_space.shape),
+            states=dict(type='float', shape=(env.observation_space.shape)),
             actions=dict(type='int', num_actions=env.action_space.n),
             network=network
         )
     )
 
+
+    print('here')
     # Add 3 random agents
     agents = []
     for agent_id in range(3):

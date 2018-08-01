@@ -89,7 +89,7 @@ from pommerman import utility
 
 from tensorforce.agents import PPOAgent
 from tensorforce.agents import DQNAgent
-from tensorforce.execution import Runner
+from Runner import Runner
 from tensorforce.contrib.openai_gym import OpenAIGym
 from tensorforce.agents import Agent
 import numpy as np
@@ -150,8 +150,8 @@ class UpdatedEnv(OpenAIGym):
         alive_after = self.check_alive()
         bomb_after = self.check_bombs()
 
-        agent_obs = featurize(obs[self.gym.training_agent])
-        # agent_state = featurize3d(state[self.gym.training_agent], self.gym._step_count, self.gym._max_steps)
+        # agent_state = featurize(obs[self.gym.training_agent])
+        agent_state = featurize3d(state[self.gym.training_agent], self.gym._step_count, self.gym._max_steps)
         agent_reward = reward[self.gym.training_agent]
 
         return agent_state, terminal, agent_reward
@@ -171,8 +171,8 @@ class UpdatedEnv(OpenAIGym):
 
     def reset(self):
         obs = self.gym.reset()
-        agent_obs = featurize(obs[self.gym.training_agent])
-        # agent_obs = featurize3d(obs[self.gym.training_agent], self.gym._step_count, self.gym._max_steps)
+        # agent_obs = featurize(obs[self.gym.training_agent])
+        agent_obs = featurize3d(obs[self.gym.training_agent], self.gym._step_count, self.gym._max_steps)
         print(agent_obs.shape)
         return agent_obs
 

@@ -6,6 +6,11 @@
         "batch_size": 500,
         "frequency": 500
     },
+    "memory": {
+        "type": "latest",
+        "include_next_states": false,
+        "capacity": 5000
+    },
 
     "step_optimizer": {
         "type": "adam",
@@ -21,8 +26,9 @@
 
     "baseline_mode": "states",
     "baseline": {
-        "type": "mlp",
-        "sizes": [32, 32]
+        "type": "cnn",
+        "conv_sizes": [32, 32],
+        "dense_sizes": [32]
     },
     "baseline_optimizer": {
         "type": "multi_step",
@@ -39,8 +45,7 @@
     },
     "summarizer": {
         "directory": null,
-        "labels": [],
-        "seconds": 120
+        "labels": ["graph", "total-loss"]
     },
     "execution": {
         "type": "single",
