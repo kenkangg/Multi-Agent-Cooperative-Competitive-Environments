@@ -66,6 +66,7 @@ def featurize3d(obs, timestep, total_time):
                             can_kick, has_teammate, wild_card, enemy1, enemy2, passage, rigid, wood,
                             flames, pow_bomb, pow_range, pow_kick, time_left])
 
+    observation = np.moveaxis(observation,0,2)
     return observation
 
 def determine_teammate(obs):
@@ -125,7 +126,7 @@ def featurize(obs):
 
     return np.concatenate((board, bomb_blast_strength, bomb_life, position, ammo, blast_strength, can_kick, teammate, enemies))
 
-class TensorforceAgent(BaseAgent):
+class TrainingAgent(BaseAgent):
     def act(self, obs, action_space):
         pass
 
@@ -134,7 +135,7 @@ class UpdatedEnv(OpenAIGym):
         self.gym = gym
         self.visualize = visualize
 
-    def execute(self, actions):
+    def step(self, actions):
         if self.visualize:
             self.gym.render()
 
@@ -150,8 +151,8 @@ class UpdatedEnv(OpenAIGym):
         alive_after = self.check_alive()
         bomb_after = self.check_bombs()
 
-        # agent_state = featurize(obs[self.gym.training_agent])
-        agent_state = featurize3d(state[self.gym.training_agent], self.gym._step_count, self.gym._max_steps)
+        agent_state = featurize(obs[self.gym.training_agent])
+        # agent_state = featurize3d(state[self.gym.training_agent], self.gym._step_count, self.gym._max_steps)
         agent_reward = reward[self.gym.training_agent]
 
         return agent_state, terminal, agent_reward
@@ -171,8 +172,8 @@ class UpdatedEnv(OpenAIGym):
 
     def reset(self):
         obs = self.gym.reset()
-        # agent_obs = featurize(obs[self.gym.training_agent])
-        agent_obs = featurize3d(obs[self.gym.training_agent], self.gym._step_count, self.gym._max_steps)
+        agent_obs = featurize(obs[self.gym.training_agent])
+        # agent_obs = featurize3d(obs[self.gym.training_agent], self.gym._step_count, self.gym._max_steps)
         print(agent_obs.shape)
         return agent_obs
 
