@@ -11,6 +11,7 @@ from pommerman.configs import ffa_v0_fast_env, ffa_competition_env
 from pommerman.envs.v0 import Pomme
 from pommerman.characters import Bomber
 from pommerman import utility
+from baselines.common.vec_env.vec_frame_stack import VecFrameStack
 
 
 from utils import featurize3d, TrainingAgent
@@ -51,10 +52,10 @@ class Wrapped_Env(Pomme):
         all_actions.insert(self.training_agent, actions[0])
 
         obs, reward, done, info = super(Wrapped_Env, self).step(all_actions)
-
         agent_state = featurize3d(obs[self.training_agent], self._step_count, self._max_steps)
-        agent_reward = reward[self.training_agent]
-
+        agent_reward = np.array([reward[self.training_agent]])
+        done = np.array([done])
+        info = np.array([info])
         return agent_state, agent_reward, done, info
 
 
@@ -96,6 +97,8 @@ def main():
     env.set_training_agent(agents[-1].agent_id)
     env.set_init_game_state(None)
 
+    # env = VecFrameStack(env, 1)
+
     # print(env.reset())
 
     policy = CnnPolicy
@@ -111,7 +114,7 @@ def main():
     #            max_grad_norm=0.5)
     num_timesteps=10000
 
-    learn(policy=policy, env=env, nsteps=128, nminibatches=4,
+    learn(policy=policy, env=env, nsteps=800, nminibatches=4,
         lam=0.95, gamma=0.99, noptepochs=4, log_interval=1,
         ent_coef=.01,
         lr=lambda f : f * 2.5e-4,

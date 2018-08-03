@@ -37,10 +37,11 @@ class CnnPolicy(object):
 
         def step(ob, *_args, **_kwargs):
             a, v, neglogp = sess.run([a0, vf, neglogp0], {X:ob})
-            return a, v, self.initial_state, neglogp
+            # v = np.array(v)
+            return a, v[0], self.initial_state, neglogp
 
         def value(ob, *_args, **_kwargs):
-            return sess.run(vf, {X:ob})
+            return sess.run(vf, {X:ob})[0]
 
         self.X = X
         self.vf = vf
@@ -95,7 +96,6 @@ class Model(object):
             if states is not None:
                 td_map[train_model.S] = states
                 td_map[train_model.M] = masks
-            print(actions.shape, advs.shape, returns.shape, values.shape, neglogpacs.shape)
             return sess.run(
                 [pg_loss, vf_loss, entropy, approxkl, clipfrac, _train],
                 td_map
@@ -135,21 +135,30 @@ class Runner(AbstractEnvRunner):
         mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [],[],[],[],[],[]
         mb_states = self.states
         epinfos = []
+        self.obs[:] = self.env.reset()
         for _ in range(self.nsteps):
+            # self.env.render()
             actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
-
-
             mb_obs.append(self.obs.copy())
             mb_actions.append(actions)
             mb_values.append(values)
             mb_neglogpacs.append(neglogpacs)
-            mb_dones.append([self.dones])
-
+            mb_dones.append(self.dones)
+            # print(self.dones)
             self.obs[:], rewards, self.dones, infos = self.env.step(actions)
-            # for info in infos:
-            #     maybeepinfo = info.get('episode')
-            #     if maybeepinfo: epinfos.append(maybeepinfo)
+            for info in infos:
+                # print(info)
+                maybeepinfo = info.get('episode')
+                # print(maybeepinfo)
+                if maybeepinfo:
+                    epinfos.append(maybeepinfo)
             mb_rewards.append(rewards)
+
+        ## Added
+        rewards = np.array(mb_rewards).T[0]
+        # print({'r':rewards[-1], 'l':np.nonzero(rewards != 0)[0]})
+        epinfos.append({'r':rewards[-1], 'l':np.nonzero(rewards != 0)[0][0]})
+
         #batch of steps to batch of rollouts
         mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
         mb_rewards = np.asarray(mb_rewards, dtype=np.float32)
@@ -172,7 +181,7 @@ class Runner(AbstractEnvRunner):
             delta = mb_rewards[t] + self.gamma * nextvalues * nextnonterminal - mb_values[t]
             mb_advs[t] = lastgaelam = delta + self.gamma * self.lam * nextnonterminal * lastgaelam
         mb_returns = mb_advs + mb_values
-        print(mb_obs.shape, mb_returns.shape, mb_dones.shape, mb_actions.shape, mb_values.shape, mb_neglogpacs.shape)
+        # print((mb_obs.shape, mb_returns.shape, mb_dones.shape, mb_actions.shape, mb_values.shape, mb_neglogpacs.shape))
         return (*map(sf01, (mb_obs, mb_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs)),
             mb_states, epinfos)
 # obs, returns, masks, actions, values, neglogpacs, states = runner.run()
@@ -180,7 +189,6 @@ def sf01(arr):
     """
     swap and then flatten axes 0 and 1
     """
-    # print(arr.shape)
     s = arr.shape
     return arr.swapaxes(0, 1).reshape(s[0] * s[1], *s[2:])
 
@@ -217,7 +225,6 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
     if load_path is not None:
         model.load(load_path)
     runner = Runner(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
-
     epinfobuf = deque(maxlen=100)
     tfirststart = time.time()
 
