@@ -24,6 +24,13 @@ from gym import spaces
 
 from PPO import *
 
+from baselines.bench import Monitor
+from baselines import logger
+import os
+from baselines.common.atari_wrappers import wrap_deepmind
+from baselines.common import set_global_seeds
+from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-test', action='store_true')
@@ -40,6 +47,24 @@ EPISODES = 50000
 config = tf.ConfigProto()
 config.gpu_options.allow_growth=True
 sess = tf.InteractiveSession(config=config)
+
+# def make_pommerman_env(env, num_env, seed, wrapper_kwargs=None, start_index=0):
+#     """
+#     Create a wrapped, monitored SubprocVecEnv for Atari.
+#     """
+#
+#     if wrapper_kwargs is None: wrapper_kwargs = {}
+#     def make_env(rank): # pylint: disable=C0111
+#         nonlocal env
+#         def _thunk():
+#             nonlocal env
+#             env.seed(seed + rank)
+#             env.num_env = num_env
+#             env = Monitor(env, logger.get_dir() and os.path.join(logger.get_dir(), str(rank)))
+#             return wrap_deepmind(env, **wrapper_kwargs)
+#         return _thunk
+#     set_global_seeds(seed)
+#     return SubprocVecEnv([make_env(i + start_index) for i in range(num_env)])
 
 
 class Wrapped_Env(Pomme):
@@ -79,10 +104,9 @@ def main():
 
     config = ffa_competition_env()
     env = Wrapped_Env(**config["env_kwargs"])
-    env.seed(0)
+    # env.seed(0)
     env.observation_space = spaces.Box(0,20,shape=(11,11,18))
     env.num_envs = 1
-
 
     # Add 3 random agents
     agents = []
@@ -97,7 +121,7 @@ def main():
     env.set_training_agent(agents[-1].agent_id)
     env.set_init_game_state(None)
 
-    # env = VecFrameStack(env, 1)
+    # env = VecFrameStack(make_pommerman_env(env, 8, 0), 2)
 
     # print(env.reset())
 
