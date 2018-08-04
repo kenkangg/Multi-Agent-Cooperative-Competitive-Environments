@@ -8,50 +8,6 @@ from baselines import logger
 from collections import deque
 from baselines.common import explained_variance
 from baselines.common.runners import AbstractEnvRunner
-from baselines.common.distributions import make_pdtype
-from baselines.common.input import observation_input
-
-import keras
-from keras.layers import Conv2D, Dense, Flatten, Input
-from keras import models
-import keras.backend as K
-
-import pickle
-import random
-
-
-
-class CnnPolicy(object):
-
-    def __init__(self, sess, ob_space, ac_space, nbatch, nsteps, reuse=False, **conv_kwargs): #pylint: disable=W0613
-        self.pdtype = make_pdtype(ac_space)
-        X, processed_x = observation_input(ob_space)
-        print(processed_x)
-
-        with tf.variable_scope("model", reuse=reuse):
-            conv = Conv2D(64, (3, 3), padding='same')(processed_x)
-            conv = Conv2D(32, (3, 3), padding='same')(conv)
-            flat = Flatten()(conv)
-            dense = Dense(100, activation='relu')(flat)
-            vf = Dense(1)(dense)
-            self.pd, self.pi = self.pdtype.pdfromlatent(dense)
-
-        a0 = self.pd.sample()
-        neglogp0 = self.pd.neglogp(a0)
-        self.initial_state = None
-
-        def step(ob, *_args, **_kwargs):
-            a, v, neglogp = sess.run([a0, vf, neglogp0], {X:ob})
-            # v = np.array(v)
-            return a, v[:,0], self.initial_state, neglogp
-
-        def value(ob, *_args, **_kwargs):
-            return sess.run(vf, {X:ob})[:,0]
-
-        self.X = X
-        self.vf = vf
-        self.step = step
-        self.value = value
 
 class Model(object):
     def __init__(self, *, policy, ob_space, ac_space, nbatch_act, nbatch_train,
@@ -136,49 +92,23 @@ class Runner(AbstractEnvRunner):
         self.lam = lam
         self.gamma = gamma
 
-
-
-
-    def run(self, update_step):
-
-
-
+    def run(self):
         mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [],[],[],[],[],[]
         mb_states = self.states
         epinfos = []
-        ###
-        self.obs[:] = self.env.get_initial_gamestate(update_step)
-        ###
-        for i in range(self.nsteps):
-            self.env.render()
+        for _ in range(self.nsteps):
+            # self.env.render()
             actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
             mb_obs.append(self.obs.copy())
             mb_actions.append(actions)
             mb_values.append(values)
             mb_neglogpacs.append(neglogpacs)
             mb_dones.append(self.dones)
-            # print(self.dones)
             self.obs[:], rewards, self.dones, infos = self.env.step(actions)
             for info in infos:
-                # print(info)
                 maybeepinfo = info.get('episode')
-                # print(maybeepinfo)
-                if maybeepinfo:
-                    epinfos.append(maybeepinfo)
+                if maybeepinfo: epinfos.append(maybeepinfo)
             mb_rewards.append(rewards)
-
-
-        ## Added
-        print(len(mb_rewards), len(mb_dones))
-        rewards = np.array(mb_rewards).T[0]
-        print(rewards)
-        if max(rewards) == 0:
-            rew = -1
-        else:
-            rew = max(rewards)
-        # print({'r':rewards[-1], 'l':np.nonzero(rewards != 0)[0]})
-        epinfos.append({'r':rew, 'l':np.nonzero(rewards != 0)[0][0]})
-
         #batch of steps to batch of rollouts
         mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
         mb_rewards = np.asarray(mb_rewards, dtype=np.float32)
@@ -201,7 +131,6 @@ class Runner(AbstractEnvRunner):
             delta = mb_rewards[t] + self.gamma * nextvalues * nextnonterminal - mb_values[t]
             mb_advs[t] = lastgaelam = delta + self.gamma * self.lam * nextnonterminal * lastgaelam
         mb_returns = mb_advs + mb_values
-        # print((mb_obs.shape, mb_returns.shape, mb_dones.shape, mb_actions.shape, mb_values.shape, mb_neglogpacs.shape))
         return (*map(sf01, (mb_obs, mb_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs)),
             mb_states, epinfos)
 # obs, returns, masks, actions, values, neglogpacs, states = runner.run()
@@ -245,6 +174,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
     if load_path is not None:
         model.load(load_path)
     runner = Runner(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
+
     epinfobuf = deque(maxlen=100)
     tfirststart = time.time()
 
@@ -256,7 +186,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
         frac = 1.0 - (update - 1.0) / nupdates
         lrnow = lr(frac)
         cliprangenow = cliprange(frac)
-        obs, returns, masks, actions, values, neglogpacs, states, epinfos = runner.run(update) #pylint: disable=E0632
+        obs, returns, masks, actions, values, neglogpacs, states, epinfos = runner.run() #pylint: disable=E0632
         epinfobuf.extend(epinfos)
         mblossvals = []
         if states is None: # nonrecurrent version
@@ -284,7 +214,6 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
                     mbstates = states[mbenvinds]
                     mblossvals.append(model.train(lrnow, cliprangenow, *slices, mbstates))
 
-        print(epinfobuf)
         lossvals = np.mean(mblossvals, axis=0)
         tnow = time.time()
         fps = int(nbatch / (tnow - tstart))
@@ -295,7 +224,6 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
             logger.logkv("total_timesteps", update*nbatch)
             logger.logkv("fps", fps)
             logger.logkv("explained_variance", float(ev))
-            logger.logkv('eprew', epinfobuf[-1]['r'])
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
             logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
             logger.logkv('time_elapsed', tnow - tfirststart)
